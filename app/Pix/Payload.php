@@ -4,10 +4,10 @@ namespace App\Pix;
 
 class Payload
 {
-     /**
-      * IDs do payload do pix
-      * @var string
-      */
+    /**
+     * IDs do payload do pix
+     * @var string
+     */
 
     const ID_PAYLOAD_FORMAT_INDICATOR = '00';
     const ID_MERCHANT_ACCOUNT_INFORMATION = '26';
@@ -116,7 +116,7 @@ class Payload
      */
     public function setAmount($amount)
     {
-        $this->amount = number_format($amount,2,'.','');
+        $this->amount = number_format($amount, 2, '.', '');
         return $this;
     }
 
@@ -126,7 +126,7 @@ class Payload
      * @return string $value
      * @return string $id.$size.$value
      */
-    private function getValue($id,$value)
+    private function getValue($id, $value)
     {
         $size = str_pad(strlen($value), 2, '0', STR_PAD_LEFT);
         return $id . $size . $value;
@@ -141,11 +141,11 @@ class Payload
         // DOMÍNIO DO BANCO
         $gui = $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION_GUI, 'br.gov.bcb.pix');
         // CHAVE PIX
-        $key = $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION_KEY,$this->pixkey);
+        $key = $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION_KEY, $this->pixkey);
         // DESCRIÇÃO DO PAGAMENTO
-        $description = strlen($this->description) ? $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION_DESCRIPTION,$this->description) : '';
+        $description = strlen($this->description) ? $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION_DESCRIPTION, $this->description) : '';
         //CRIAR O PAYLOAD
-        return $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION,$gui.$key.$description);
+        return $this->getValue(self::ID_MERCHANT_ACCOUNT_INFORMATION, $gui . $key . $description);
     }
 
     /**
@@ -170,63 +170,41 @@ class Payload
         $payload = $this->getValue(self::ID_PAYLOAD_FORMAT_INDICATOR, '01') .
             $this->getMerchantAccountInformation() .
             $this->getValue(self::ID_MERCHANT_CATEGORY_CODE, '0000') .
-            $this->getValue(self::ID_TRANSACTION_CURRENCY, '986').
-            $this->getValue(self::ID_TRANSACTION_AMOUNT,$this->amount).
-            $this->getValue(self::ID_COUNTRY_CODE,'BR').
-            $this->getValue(self::ID_MERCHANT_NAME,$this->merchantName).
-            $this->getValue(self::ID_MERCHANT_CITY,$this->merchantCity).
+            $this->getValue(self::ID_TRANSACTION_CURRENCY, '986') .
+            $this->getValue(self::ID_TRANSACTION_AMOUNT, $this->amount) .
+            $this->getValue(self::ID_COUNTRY_CODE, 'BR') .
+            $this->getValue(self::ID_MERCHANT_NAME, $this->merchantName) .
+            $this->getValue(self::ID_MERCHANT_CITY, $this->merchantCity) .
             $this->getAdditionalDataFielTemplate();
-        return $payload;
+        //RETORNA O PAYLOAD + CRC16
+        return $payload.$this->getCRC16($payload);
     }
 
+    /**
+     * Método responsável por calcular o valor da hash de validação do código pix
+     * @return string
+     */
+    private function getCRC16($payload)
+    {
+        //ADICIONA DADOS GERAIS NO PAYLOAD
+        $payload .= self::ID_CRC16 . '04';
 
+        //DADOS DEFINIDOS PELO BACEN
+        $polinomio = 0x1021;
+        $resultado = 0xFFFF;
 
+        //CHECKSUM
+        if (($length = strlen($payload)) > 0) {
+            for ($offset = 0; $offset < $length; $offset++) {
+                $resultado ^= (ord($payload[$offset]) << 8);
+                for ($bitwise = 0; $bitwise < 8; $bitwise++) {
+                    if (($resultado <<= 1) & 0x10000) $resultado ^= $polinomio;
+                    $resultado &= 0xFFFF;
+                }
+            }
+        }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        //RETORNA CÓDIGO CRC16 DE 4 CARACTERES
+        return self::ID_CRC16 . '04' . strtoupper(dechex($resultado));
+    }
 }
